@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Checkout — Schedule Rota</title>
+<link href="https://cdn.moyasar.com/mpf/1.15.0/moyasar.css" rel="stylesheet"/>
+<script src="https://cdn.moyasar.com/mpf/1.15.0/moyasar.js"></script>
+<style>
+  body{font-family:-apple-system,'Segoe UI',Tahoma,Arial,sans-serif;background:#F5F7FA;margin:0;padding:24px 16px;color:#16202B}
+  .wrap{max-width:420px;margin:0 auto}
+  .card{background:#fff;border-radius:16px;padding:22px;box-shadow:0 2px 14px rgba(11,37,64,.08)}
+  h1{font-size:16px;margin:0 0 2px;color:#0B2540}
+  .sub{font-size:13px;color:#5B6B7C;margin:0 0 18px}
+  .amount{font-size:28px;font-weight:800;color:#0B2540;margin:0 0 18px}
+  .amount span{font-size:14px;font-weight:600;color:#5B6B7C}
+  #error-msg{display:none;background:#FBEAE7;color:#B0392C;padding:10px 12px;border-radius:8px;font-size:13px;margin-bottom:14px}
+  #loading-msg{text-align:center;color:#5B6B7C;font-size:13px;padding:20px 0}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <h1 id="plan-title">Schedule Rota Subscription</h1>
+    <p class="sub" id="plan-sub">Secure payment powered by Moyasar</p>
+    <div class="amount" id="amount-display">— <span>SAR</span></div>
+    <div id="error-msg"></div>
+    <div id="loading-msg">Loading payment form…</div>
+    <div class="mysr-form"></div>
+  </div>
+</div>
+<script>
+  function qs(name) { return new URLSearchParams(window.location.search).get(name); }
+
+  const planKey = qs('plan') || 'starter';
+  const cycle = qs('cycle') || 'monthly';
+  const userId = qs('userId') || '';
+  const email = qs('email') || '';
+  const amountHalalas = parseInt(qs('amount') || '0', 10); // smallest currency unit (SAR * 100)
+  const planLabel = qs('label') || planKey;
+
+  // IMPORTANT: replace with your real Moyasar PUBLISHABLE key (safe to expose client-side).
+  // Get it from: Moyasar Dashboard -> Settings -> API Keys.
+  const MOYASAR_PUBLISHABLE_KEY = 'pk_test_REPLACE_ME';
+
+  document.getElementById('plan-title').textContent = planLabel + ' — ' + (cycle === 'yearly' ? 'Yearly' : 'Monthly');
+  document.getElementById('amount-display').innerHTML = (amountHalalas / 100).toFixed(2) + ' <span>SAR</span>';
+
+  if (!amountHalalas || !userId) {
+    document.getElementById('loading-msg').style.display = 'none';
+    document.getElementById('error-msg').style.display = 'block';
+    document.getElementById('error-msg').textContent = 'Missing plan details — please go back and try again.';
+  } else if (MOYASAR_PUBLISHABLE_KEY.indexOf('REPLACE_ME') !== -1) {
+    document.getElementById('loading-msg').style.display = 'none';
+    document.getElementById('error-msg').style.display = 'block';
+    document.getElementById('error-msg').textContent = 'Payments are not configured yet (missing Moyasar publishable key).';
+  } else {
+    document.getElementById('loading-msg').style.display = 'none';
+    const verifyUrl = window.location.origin + '/.netlify/functions/verify-moyasar-payment'
+      + '?userId=' + encodeURIComponent(userId)
+      + '&plan=' + encodeURIComponent(planKey)
+      + '&cycle=' + encodeURIComponent(cycle)
+      + '&expectedAmount=' + amountHalalas;
+
+    Moyasar.init({
+      element: '.mysr-form',
+      amount: amountHalalas,
+      currency: 'SAR',
+      description: 'Schedule Rota — ' + planLabel + ' (' + cycle + ')',
+      publishable_api_key: MOYASAR_PUBLISHABLE_KEY,
+      callback_url: verifyUrl,
+      methods: ['creditcard', 'applepay'],
+      supported_networks: ['mada', 'visa', 'mastercard'],
+      metadata: { supabase_user_id: userId, plan: planKey, cycle: cycle },
+      apple_pay: {
+        country: 'SA',
+        label: 'Schedule Rota',
+        validate_merchant_url: 'https://api.moyasar.com/v1/applepay/initiate',
+      },
+    });
+  }
+</script>
+</body>
+</html>
