@@ -6,8 +6,13 @@
 // this URL in the Moyasar Dashboard -> Webhooks:
 //   https://your-site.netlify.app/.netlify/functions/moyasar-webhook
 //
-// Required Netlify environment variables (same as verify-moyasar-payment.js):
-//   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+// Moyasar includes the secret token you set in the Dashboard directly in
+// the webhook payload (as `secret_token`) so you can confirm the request
+// really came from Moyasar. This function checks it against the
+// MOYASAR_WEBHOOK_TOKEN environment variable before doing anything else.
+//
+// Required Netlify environment variables:
+//   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, MOYASAR_WEBHOOK_TOKEN
 
 const { createClient } = require('@supabase/supabase-js');
 
@@ -18,6 +23,15 @@ exports.handler = async (event) => {
 
   try {
     const body = JSON.parse(event.body || '{}');
+
+    // Verify this request really came from Moyasar before trusting anything in it.
+    const expectedToken = process.env.MOYASAR_WEBHOOK_TOKEN;
+    const receivedToken = body.secret_token || body.secretToken;
+    if (expectedToken && receivedToken !== expectedToken) {
+      console.error('moyasar-webhook: token mismatch, rejecting request');
+      return { statusCode: 401, body: JSON.stringify({ error: 'Invalid webhook token' }) };
+    }
+
     // Moyasar webhook payloads wrap the payment under `data` — see
     // https://docs.moyasar.com for the exact current shape, and adjust
     // this line if their format differs from what you see in your
